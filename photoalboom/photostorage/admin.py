@@ -6,15 +6,19 @@ from photostorage.models import Family, Group, Photo, PhotoGroup, PhotoTag, Tag
 
 class PhotoGroupAdmin(admin.TabularInline):
     model = PhotoGroup
-    min_num = 1
+    min_num = 0
 
 class PhotoTagAdmin(admin.TabularInline):
     model = PhotoTag
-    min_num = 1
+    min_num = 0
     
 @admin.register(Family)
 class FamilyAdmin(admin.ModelAdmin):
-    list_display = ("pk", "title", "slug")
+    @admin.display(description='участники')
+    def members_list(self, obj):
+        return list(member for member in obj.members.all())
+    
+    list_display = ("pk", "title", "slug", "creator", "members_list")
     search_fields = ("title",)
     list_filter = ("title",)
     empty_value_display = "-пусто-"
@@ -42,20 +46,25 @@ class TagAdmin(admin.ModelAdmin):
 class PhotoAdmin(admin.ModelAdmin):
     @admin.display(description='тэги')
     def tags_list(self, obj):
-        return list(tag for tag in obj.tag.all())
+        return list(tag for tag in obj.tags.all())
+    
+    @admin.display(description='families')
+    def families_list(self, obj):
+        return list(family for family in obj.families.all())
 
     @admin.display(description='группы')
     def groups_list(self, obj):
-        return list(group for group in obj.group.all())
+        return list(group for group in obj.groups.all())
     
     list_display = (
-        "pk", "image", "family", "created_date",
+        "pk", "file", "families_list", "created_date",
         "groups_list", "tags_list"
         )
     search_fields = (
-        "family", "created_date","group", "tag"
+        "created_date","families",
         )
-    list_filter = ("family", "created_date", "group", "tag")
+    list_filter = ("created_date", "families", "groups", "tags")
     empty_value_display = "-пусто-"
     inlines = [PhotoGroupAdmin,
                PhotoTagAdmin]
+    exclude=("created_date",)

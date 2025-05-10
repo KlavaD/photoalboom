@@ -1,13 +1,32 @@
-from django.contrib.contenttypes.fields import GenericForeignKey
-from django.contrib.contenttypes.fields import GenericRelation
-from django.contrib.contenttypes.models import ContentType
+from django.contrib.auth import get_user_model
 from django.db import models
 from pytils.translit import slugify
+from PIL import Image
+from PIL.ExifTags import TAGS
+from django.utils.timezone import make_aware
+import datetime
 
-class Family(models.Model):
+User = get_user_model()
+
+
+class SlugAbs(models.Model):
+    class Meta:
+        abstract=True
+
+    def save(self, *args, **kwargs):
+        if not self.id and not self.slug:
+            self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+
+
+class Family(SlugAbs):
     title = models.CharField("Фамилия", max_length=200)
     slug = models.CharField(unique=True)
     creator = models.ForeignKey(User, on_delete=models.CASCADE)
+    members = models.ManyToManyField(
+        User,  through='FamilyMember',
+        related_name="families")
+
 
     class Meta:
         verbose_name = 'Семья'
@@ -16,12 +35,13 @@ class Family(models.Model):
     def __str__(self) -> str:
         return self.title
     
-    def save(self, *args, **kwargs):
-        if not self.id and not self.slug:
-            self.slug = slugify(self.title)
-        super().save(*args, **kwargs)
-    
-class Group(models.Model):
+
+class FamilyMember(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    family = models.ForeignKey(Family, on_delete=models.CASCADE)
+
+
+class Group(SlugAbs):
     title = models.CharField("Название группы фотографий", max_length=200)
     slug = models.SlugField(unique=True)
     description = models.TextField("Описание группы",blank=True, null=True)
@@ -33,13 +53,8 @@ class Group(models.Model):
     def __str__(self) -> str:
         return self.title
     
-    def save(self, *args, **kwargs):
-        if not self.id and not self.slug:
-            self.slug = slugify(self.title)
-        super().save(*args, **kwargs)
 
-
-class Tag(models.Model):
+class Tag(SlugAbs):
     title = models.CharField("Название тэга", max_length=200)
     slug = models.SlugField(unique=True)
 
@@ -50,48 +65,63 @@ class Tag(models.Model):
     def __str__(self) -> str:
         return self.title
 
-    def save(self, *args, **kwargs):
-        if not self.id and not self.slug:
-            self.slug = slugify(self.title)
-        super().save(*args, **kwargs)
-
 
 class Photo(models.Model):
-    image = models.ImageField(
+    file = models.ImageField(
         'Фото',
-        upload_to='photo/',
+        upload_to='photos/',
         blank=True
     )
-    family = models.ForeignKey(
+    families = models.ManyToManyField(
         Family,
-        on_delete=models.SET_NULL,
         blank=True,
-        null=True,
         verbose_name="Семья"
-
     )
-    created_date = models.DateTimeField(
+    created_date = models.DateField(
         'Дата фотографии',
     )
     
-    group = models.ManyToManyField(
+    groups = models.ManyToManyField(
         Group,
         blank=True,
         through="PhotoGroup",
         verbose_name="Группы"
     )
 
-    tag = models.ManyToManyField(
+    tags = models.ManyToManyField(
         Tag,
         blank=True,
         through="PhotoTag",
         verbose_name="Тэги"
     )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='uploaded_photos')
     
+    def save(self, *args, **kwargs):
+        # Если дата съёмки ещё не установлена — пробуем извлечь из EXIF
+        if not self.created_date and self.file:
+            try:
+                image = Image.open(self.file)
+                exif_data = image._getexif()
+                if exif_data:
+                    for tag, value in exif_data.items():
+                        tag_name = TAGS.get(tag)
+                        if tag_name == 'DateTimeOriginal' or tag_name=="DateTime":
+                            # Пример значения: "2020:05:15 13:45:30"
+                            dt = datetime.datetime.strptime(value, "%Y:%m:%d %H:%M:%S")
+                            self.created_date = make_aware(dt)
+                            break
+            except Exception as e:
+                # Можно залогировать или проигнорировать
+                pass
+
+        super().save(*args, **kwargs)
+
     class Meta:
         verbose_name = 'Фото'
         verbose_name_plural = 'Фото'
-        default_related_name = 'photo'
+        default_related_name = 'photos'
 
 
 class PhotoGroup(models.Model):

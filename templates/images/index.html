@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% load thumbnail %}
+{% block title %}
+  Фотогалерея
+{% endblock %}
+{% block content %}
+  <h1>
+    Фотогалерея
+  </h1>
+  <ul>
+ {% for image in page_obj %}
+  <li>
+    {{ image.file }}
+    {{ image.created_date }}
+    {% for family in image.families.all %}
+    <h3>{{family}}</h3>
+    {% endfor %}
+    Группы:<br>
+    {% for group in image.groups.all %}
+    {{ group }}
+    {% endfor %}
+    <br>
+    Тэги:<br>
+    {% for tag in image.tags.all %}
+    {{ tag }}
+    {% endfor %}
+    <br>
+    {% thumbnail image.file "1000" as big %}
+    {% thumbnail image.file "50x50" crop="center" as small %}
+        <a href="{{ big.url}}" title="look ma!"><img src="{{ small.url }}"></a>
+    {% endthumbnail %}
+{% endthumbnail %}
+  </li>
+{% endfor %}
+</ul>
+{% endblock %}
