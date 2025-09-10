@@ -4,3 +4,5 @@ pillow==11.1.0
 pytils==0.4.3
 sqlparse==0.5.3
 sorl-thumbnail
+djangorestframework==3.16.0
+drf-spectacular==0.28.0

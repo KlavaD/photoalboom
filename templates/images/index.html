@@ -11,7 +11,8 @@
  {% for image in page_obj %}
   <li>
     {{ image.file }}
-    {{ image.created_date }}
+    <p>дата:
+    {{ image.created_date|date:"d.m.Y" }}</p>
     {% for family in image.families.all %}
     <h3>{{family}}</h3>
     {% endfor %}
